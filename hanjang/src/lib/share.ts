@@ -74,3 +74,16 @@ export async function copyText(text: string): Promise<boolean> {
 export function isIOS(): boolean {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
+
+/** 카카오톡·인스타그램 등 앱 안에서 열린 브라우저인지 */
+export function inAppBrowser(): 'kakao' | 'other' | null {
+  const ua = navigator.userAgent;
+  if (/KAKAOTALK/i.test(ua)) return 'kakao';
+  if (/Instagram|FBAN|FBAV|Line\/|NAVER\(inapp|DaumApps|everytimeApp|Whale\/.*Mobile.*inapp/i.test(ua)) return 'other';
+  return null;
+}
+
+/** 카카오톡 안에서 열렸을 때 기본 브라우저(Safari/Chrome)로 다시 연다 */
+export function openInExternalBrowser() {
+  location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(location.href)}`;
+}

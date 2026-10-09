@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { appLink, canShareFiles, copyText, downloadImage, isIOS, shareImage } from '../lib/share';
+import { appLink, canShareFiles, copyText, downloadImage, inAppBrowser, isIOS, openInExternalBrowser, shareImage } from '../lib/share';
 
 /**
  * 저장·공유 화면.
+ * - 아이폰: 공유창의 "이미지 저장"으로 사진첩에 저장한다. (내려받기 방식은 이미지를 크게 열어버려서 쓰지 않는다)
+ * - 안드로이드·PC: 공유창 + 파일로 내려받기
+ * - 카카오톡 등 앱 안 브라우저: 공유창이 막혀 있는 경우가 많아 바깥 브라우저로 열도록 안내한다.
  * 이미지 속 글자 링크는 대부분 SNS에서 눌리지 않으므로, 링크 복사를 따로 둔다.
  */
 export function ShareSheet({
@@ -15,45 +18,32 @@ export function ShareSheet({
   onClose: () => void;
 }) {
   const [blob, setBlob] = useState<Blob>();
-  const [url, setUrl] = useState<string>();
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
-  const [showLong, setShowLong] = useState(false);
   const [showLink, setShowLink] = useState(false);
   const share = canShareFiles();
   const ios = isIOS();
+  const inApp = inAppBrowser();
   const link = appLink();
 
   useEffect(() => {
-    let u: string | undefined;
     makeImage()
-      .then((b) => {
-        setBlob(b);
-        u = URL.createObjectURL(b);
-        setUrl(u);
-      })
+      .then(setBlob)
       .catch(() => setErr('이미지를 만들지 못했어요. 폰 메모리가 부족할 수 있어요. 다른 앱을 닫고 다시 시도해 주세요.'));
-    return () => {
-      if (u) URL.revokeObjectURL(u);
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function onShare() {
     if (!blob) return;
     const r = await shareImage(blob, fileName);
-    if (r === 'shared') setMsg('공유창으로 보냈어요.');
-    else if (r === 'unsupported') setMsg('이 브라우저는 이미지 공유를 지원하지 않아요. 이미지 저장을 이용해 주세요.');
-    else if (r === 'failed') setMsg('공유하지 못했어요. 이미지 저장을 이용해 주세요.');
+    if (r === 'shared') setMsg(ios ? '공유창에서 "이미지 저장"을 눌렀다면 사진첩에 저장됐어요.' : '공유창으로 보냈어요.');
+    else if (r === 'unsupported' || r === 'failed')
+      setMsg(ios ? '이 브라우저에서는 저장할 수 없어요. Safari로 열어서 다시 시도해 주세요.' : '공유창을 열지 못했어요. "파일로 내려받기"를 이용해 주세요.');
   }
   function onDownload() {
     if (!blob) return;
     downloadImage(blob, fileName);
-    setMsg(
-      ios
-        ? '저장이 안 됐다면 "크게 띄워서 길게 눌러 저장"을 이용해 주세요.'
-        : '내려받기를 시작했어요. 안 됐다면 "크게 띄워서 길게 눌러 저장"을 이용해 주세요.',
-    );
+    setMsg('내려받기를 시작했어요. 갤러리나 "다운로드" 폴더를 확인해 주세요.');
   }
   async function onCopy() {
     const ok = await copyText(link);
@@ -73,6 +63,23 @@ export function ShareSheet({
             ✕
           </button>
         </div>
+
+        {inApp && (
+          <div className="inapp" role="alert" data-testid="inapp-notice">
+            <p>
+              <strong>{inApp === 'kakao' ? '카카오톡' : '앱'} 안에서 열려 있어요.</strong> 여기서는 사진 저장이 막혀 있을 수 있어요.{' '}
+              {ios ? 'Safari' : 'Chrome'}에서 열면 저장할 수 있어요.
+            </p>
+            {inApp === 'kakao' ? (
+              <button className="btn primary" onClick={openInExternalBrowser}>
+                {ios ? 'Safari' : 'Chrome'}로 열기
+              </button>
+            ) : (
+              <p className="fineprint">화면 오른쪽 위(또는 아래) 메뉴에서 "다른 브라우저로 열기"를 눌러 주세요.</p>
+            )}
+          </div>
+        )}
+
         {err && <p className="error">{err}</p>}
         {!blob && !err && <p className="muted">이미지를 만드는 중…</p>}
         {blob && (
@@ -80,15 +87,20 @@ export function ShareSheet({
             <div className="sheet-actions">
               {share && (
                 <button className="btn primary" onClick={onShare} data-testid="share-btn">
-                  공유하기
+                  {ios ? '사진첩에 저장 · 공유하기' : '저장 · 공유하기'}
                 </button>
               )}
-              <button className={`btn ${share ? '' : 'primary'}`} onClick={onDownload} data-testid="download-btn">
-                이미지 저장
-              </button>
-              <button className="btn" onClick={() => setShowLong((v) => !v)} data-testid="longpress-btn">
-                {showLong ? '크게 보기 닫기' : '크게 띄워서 길게 눌러 저장'}
-              </button>
+              {share && (
+                <p className="fineprint center">
+                  {ios ? '공유창이 뜨면 "이미지 저장"을 누르면 사진첩에 저장돼요.' : '공유창에서 갤러리나 보낼 앱을 골라 주세요.'}
+                </p>
+              )}
+              {!ios && (
+                <button className={`btn ${share ? '' : 'primary'}`} onClick={onDownload} data-testid="download-btn">
+                  파일로 내려받기
+                </button>
+              )}
+              {ios && !share && !inApp && <p className="error">이 브라우저에서는 사진 저장을 지원하지 않아요. Safari로 열어 주세요.</p>}
               <button className="btn ghost" onClick={onCopy} data-testid="copy-link-btn">
                 앱 링크 복사
               </button>
@@ -99,12 +111,6 @@ export function ShareSheet({
               </p>
             )}
             {showLink && <input className="link-field" readOnly value={link} onFocus={(e) => e.currentTarget.select()} aria-label="앱 링크" />}
-            {showLong && url && (
-              <div className="longpress">
-                <p className="muted">이미지를 길게 누른 뒤 "사진에 추가"(아이폰) 또는 "이미지 다운로드"(안드로이드)를 선택하세요.</p>
-                <img src={url} alt="저장할 이미지" />
-              </div>
-            )}
             <p className="fineprint">이미지 크기 {Math.round(blob.size / 1024)}KB · 사진은 서버로 보내지 않아요.</p>
           </>
         )}

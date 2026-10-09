@@ -254,8 +254,9 @@ h2 { font-size: 17px; }
 .sheet-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .sheet-actions { display: grid; gap: 8px; }
 .link-field { width: 100%; margin-top: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-family: var(--mono); font-size: 14px; }
-.longpress { margin-top: 12px; display: grid; gap: 8px; }
-.longpress img { border-radius: 8px; -webkit-touch-callout: default; user-select: auto; }
+.inapp { display: grid; gap: 8px; padding: 12px; margin-bottom: 12px; border-radius: 12px; background: var(--accent-soft); font-size: 14px; }
+.inapp p { margin: 0; }
+.center { text-align: center; margin-top: -2px; }
 
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; }
