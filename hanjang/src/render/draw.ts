@@ -1,3 +1,4 @@
+import type { Adjust } from '../types';
 // 그리기 도우미: 사진 캐시, 꽉 채워 자르기, 레트로 필터, 글자 줄바꿈
 
 export interface PhotoSource {
@@ -114,27 +115,93 @@ function hashStr(str: string) {
   return h >>> 0;
 }
 
-/** 상자 크기(w,h)에 맞게 자른 뒤 레트로 효과를 입힌 캔버스를 돌려준다 */
-export function retroCover(
-  img: HTMLImageElement,
-  photoId: string,
-  w: number,
-  h: number,
-  strength: number,
-): Promise<HTMLCanvasElement> {
+export interface PhotoFx {
+  retro?: number; // 0~100, 0이면 끔
+  adjust?: Adjust;
+}
+
+export function isNeutral(a?: Adjust) {
+  return !a || (!a.brightness && !a.contrast && !a.saturation && !a.warmth && !a.fade && !a.grain);
+}
+
+/**
+ * 상자 크기(w,h)에 맞게 자른 뒤 색감 조절 → 레트로 순서로 효과를 입힌 캔버스를 돌려준다.
+ * 저장된 사진은 건드리지 않고, 새 캔버스에만 그린다.
+ */
+export function processedCover(img: HTMLImageElement, photoId: string, w: number, h: number, fx: PhotoFx): Promise<HTMLCanvasElement> {
   w = Math.round(w);
   h = Math.round(h);
-  const key = `${photoId}:${w}x${h}:${strength}`;
+  const adj = isNeutral(fx.adjust) ? undefined : fx.adjust;
+  const retro = fx.retro && fx.retro > 0 ? fx.retro : 0;
+  const key = `${photoId}:${w}x${h}:${retro}:${adj ? JSON.stringify(adj) : '-'}`;
   const hit = filterCache.get(key);
   if (hit) return hit;
-  const job = applyRetro(img, photoId, w, h, strength / 100);
+  const job = (async () => {
+    let c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    drawCover(c.getContext('2d')!, img, 0, 0, w, h);
+    if (adj) applyAdjust(c, photoId, adj);
+    if (retro) {
+      const r = await applyRetro(c, photoId, w, h, retro / 100);
+      c.width = c.height = 0;
+      c = r;
+    }
+    return c;
+  })();
   filterCache.set(key, job);
   job.catch(() => filterCache.delete(key));
   while (filterCache.size > 16) filterCache.delete(filterCache.keys().next().value as string);
   return job;
 }
 
-async function applyRetro(img: HTMLImageElement, photoId: string, w: number, h: number, s: number) {
+/** 밝기·대비·채도·따뜻함·바랜 느낌·노이즈를 픽셀 단위로 적용한다 */
+export function applyAdjust(c: HTMLCanvasElement, photoId: string, a: Adjust) {
+  const w = c.width;
+  const h = c.height;
+  const ctx = c.getContext('2d', { willReadFrequently: true })!;
+  const img = ctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  const bright = a.brightness * 0.55;
+  const contrast = 1 + (a.contrast / 100) * 0.6;
+  const sat = 1 + a.saturation / 100;
+  const warmR = a.warmth * 0.22;
+  const warmG = a.warmth * 0.04;
+  const warmB = -a.warmth * 0.24;
+  const lift = a.fade * 0.6;
+  const liftK = (255 - lift) / 255;
+  const grain = a.grain * 0.45;
+  const rand = seeded(hashStr(photoId) ^ 0x9e37);
+  for (let i = 0; i < d.length; i += 4) {
+    let r = d[i] + bright;
+    let g = d[i + 1] + bright;
+    let b = d[i + 2] + bright;
+    r = (r - 128) * contrast + 128;
+    g = (g - 128) * contrast + 128;
+    b = (b - 128) * contrast + 128;
+    const l = 0.299 * r + 0.587 * g + 0.114 * b;
+    r = l + (r - l) * sat + warmR;
+    g = l + (g - l) * sat + warmG;
+    b = l + (b - l) * sat + warmB;
+    if (lift) {
+      r = lift + Math.max(0, r) * liftK;
+      g = lift + Math.max(0, g) * liftK;
+      b = lift + Math.max(0, b) * liftK;
+    }
+    if (grain) {
+      const n = (rand() - 0.5) * grain;
+      r += n;
+      g += n;
+      b += n;
+    }
+    d[i] = r;
+    d[i + 1] = g;
+    d[i + 2] = b;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+async function applyRetro(img: HTMLCanvasElement, photoId: string, w: number, h: number, s: number) {
   const out = document.createElement('canvas');
   out.width = w;
   out.height = h;
@@ -227,7 +294,7 @@ async function applyRetro(img: HTMLImageElement, photoId: string, w: number, h: 
   return out;
 }
 
-/** 필터 여부에 따라 사진을 그린다 */
+/** 효과(색감 조절, 레트로) 여부에 따라 사진을 그린다 */
 export async function drawPhoto(
   ctx: Ctx,
   p: PhotoSource,
@@ -235,11 +302,11 @@ export async function drawPhoto(
   y: number,
   w: number,
   h: number,
-  opt: { size?: 'full' | 'thumb'; retro?: number; radius?: number } = {},
+  opt: { size?: 'full' | 'thumb'; radius?: number } & PhotoFx = {},
 ) {
   const img = await loadPhoto(p, opt.size ?? 'full');
-  if (opt.retro && opt.retro > 0) {
-    const c = await retroCover(img, p.id, w, h, opt.retro);
+  if ((opt.retro && opt.retro > 0) || !isNeutral(opt.adjust)) {
+    const c = await processedCover(img, p.id, w, h, opt);
     ctx.save();
     if (opt.radius) {
       roundRect(ctx, x, y, w, h, opt.radius);

@@ -23,7 +23,7 @@ const SPECS = [
 // 화면에 고정으로 쓰이는 글자들
 const BASE =
   '한 장 0123456789 월화수목금토일요일 아직 이달의 기록이 없어요 개 ' +
-  'ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz .,/·\'_…';
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz .,/·\'_…!';
 
 export async function ensureFonts(text = ''): Promise<void> {
   if (!document.fonts?.load) return;

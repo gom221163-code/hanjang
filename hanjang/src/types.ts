@@ -1,6 +1,6 @@
 // 앱 전체에서 쓰는 데이터 모양
 
-export type TemplateId = 'polaroid' | 'minimal' | 'retro' | 'note';
+export type TemplateId = 'fourcut' | 'polaroid' | 'minimal' | 'retro' | 'note';
 export type Ratio = '9:16' | '1:1';
 
 /** 저장된 사진. 원본이 아니라 긴 변 2048px로 줄인 축소본이다. */
@@ -15,9 +15,20 @@ export interface StoredPhoto {
   createdAt: number;
 }
 
+export interface Adjust {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  warmth: number;
+  fade: number;
+  grain: number;
+}
+
 export interface FilterSetting {
   retro: boolean;
   strength: number; // 0~100
+  preset?: string; // 고른 색감 프리셋 id ('custom'이면 직접 조절)
+  adjust?: Adjust; // 색감 조절 값. 없으면 원본 색
 }
 
 /** 오늘의 기록 카드 */
@@ -32,6 +43,7 @@ export interface RecordItem {
   ratio: Ratio;
   photoIds: string[]; // 표시 순서
   filter: FilterSetting;
+  frame?: string; // 네컷 프레임 색 id
 }
 
 /** 월간 다이어리. 월마다 하나. */

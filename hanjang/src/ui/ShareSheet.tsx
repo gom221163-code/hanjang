@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { track } from '../lib/analytics';
 import { appLink, canShareFiles, copyText, downloadImage, inAppBrowser, isIOS, openInExternalBrowser, shareImage } from '../lib/share';
 
 /**
@@ -9,10 +10,12 @@ import { appLink, canShareFiles, copyText, downloadImage, inAppBrowser, isIOS, o
  * 이미지 속 글자 링크는 대부분 SNS에서 눌리지 않으므로, 링크 복사를 따로 둔다.
  */
 export function ShareSheet({
+  kind,
   makeImage,
   fileName,
   onClose,
 }: {
+  kind: 'record' | 'monthly';
   makeImage: () => Promise<Blob>;
   fileName: string;
   onClose: () => void;
@@ -36,6 +39,7 @@ export function ShareSheet({
   async function onShare() {
     if (!blob) return;
     const r = await shareImage(blob, fileName);
+    if (r === 'shared') track('export', { kind, method: 'share' });
     if (r === 'shared') setMsg(ios ? '공유창에서 "이미지 저장"을 눌렀다면 사진첩에 저장됐어요.' : '공유창으로 보냈어요.');
     else if (r === 'unsupported' || r === 'failed')
       setMsg(ios ? '이 브라우저에서는 저장할 수 없어요. Safari로 열어서 다시 시도해 주세요.' : '공유창을 열지 못했어요. "파일로 내려받기"를 이용해 주세요.');
@@ -43,10 +47,12 @@ export function ShareSheet({
   function onDownload() {
     if (!blob) return;
     downloadImage(blob, fileName);
+    track('export', { kind, method: 'download' });
     setMsg('내려받기를 시작했어요. 갤러리나 "다운로드" 폴더를 확인해 주세요.');
   }
   async function onCopy() {
     const ok = await copyText(link);
+    track('link_copied', { kind });
     if (ok) setMsg('앱 링크를 복사했어요. 인스타 스토리에서는 "링크" 스티커에 붙여 넣으면 돼요.');
     else {
       setShowLink(true);

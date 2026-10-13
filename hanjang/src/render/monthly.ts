@@ -10,6 +10,7 @@ import {
   MONTH_EN,
   drawLines,
   drawPhoto,
+  type PhotoFx,
   ellipsize,
   fitText,
   fmtShort,
@@ -26,7 +27,7 @@ export interface MonthlyInput {
   variant: number;
   records: RecordItem[]; // 표시 순서대로 (첫 번째가 대표)
   photoOf: (r: RecordItem) => PhotoSource | undefined; // 기록의 대표 사진
-  retroOf?: (r: RecordItem) => number;
+  fxOf?: (r: RecordItem) => PhotoFx;
 }
 
 const PAPER = '#F1EEE8';
@@ -92,7 +93,7 @@ export async function renderMonthly(canvas: HTMLCanvasElement, m: MonthlyInput) 
     const p = m.photoOf(r);
     const big = s.w > 500;
     if (p) {
-      await drawPhoto(ctx, p, s.x, s.y, s.w, s.h, { size: big ? 'full' : 'thumb', retro: m.retroOf?.(r) ?? 0 });
+      await drawPhoto(ctx, p, s.x, s.y, s.w, s.h, { size: big ? 'full' : 'thumb', ...(m.fxOf?.(r) ?? {}) });
     } else {
       ctx.fillStyle = dark ? '#3A3632' : '#E2DDD4';
       ctx.fillRect(s.x, s.y, s.w, s.h);

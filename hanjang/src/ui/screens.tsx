@@ -8,6 +8,7 @@ import { clearPhotoCache, fmtKo, fmtShort, type PhotoSource } from '../render/dr
 import { canvasToImage } from '../lib/share';
 import { CanvasPreview, ConfirmBox, Thumb, TopBar, fmtBytes, todayStr } from './common';
 import { ShareSheet } from './ShareSheet';
+import { analyticsEnabled, track } from '../lib/analytics';
 
 // ---------------- 안내 문구 (첫 방문, 설정에서 공통 사용) ----------------
 
@@ -20,6 +21,11 @@ export function DataNotice() {
         브라우저 데이터를 지우거나, 기기를 바꾸거나, 브라우저가 저장 공간을 정리하면 <strong>기록이 사라질 수 있어요.</strong> 홈 화면에 추가해도 영구 보존이 보장되지는 않아요.
       </li>
       <li>소중한 기록은 <strong>이미지로 저장해서 사진첩에 따로 보관</strong>해 주세요.</li>
+      {analyticsEnabled && (
+        <li>
+          앱을 더 낫게 만들려고 <strong>어떤 템플릿·프레임·색감이 쓰였는지</strong> 같은 사용 횟수만 익명으로 모아요. 사진, 제목, 글은 보내지 않아요.
+        </li>
+      )}
     </ul>
   );
 }
@@ -214,7 +220,7 @@ export function RecordView({ id, onBack, onEdit, onDeleted }: { id: string; onBa
         <button className="btn" onClick={onEdit} data-testid="edit-record">수정</button>
         <button className="btn primary grow" onClick={() => setShare(true)} data-testid="open-share">저장·공유</button>
       </div>
-      {share && <ShareSheet makeImage={makeImage} fileName={`hanjang-${rec.date}.jpg`} onClose={() => setShare(false)} />}
+      {share && <ShareSheet kind="record" makeImage={makeImage} fileName={`hanjang-${rec.date}.jpg`} onClose={() => setShare(false)} />}
     </div>
   );
 }
@@ -298,7 +304,7 @@ export function MonthlyEditor({ month, onBack, onNew }: { month: string; onBack:
       variant,
       records: ordered,
       photoOf: (r: RecordItem) => photoMap[r.id],
-      retroOf: (r: RecordItem) => (r.filter.retro ? r.filter.strength : 0),
+      fxOf: (r: RecordItem) => ({ retro: r.filter.retro ? r.filter.strength : 0, adjust: r.filter.adjust }),
     }),
     [month, title, variant, ordered, photoMap],
   );
@@ -308,6 +314,7 @@ export function MonthlyEditor({ month, onBack, onNew }: { month: string; onBack:
     try {
       await saveMonthly(m);
       setSaved(m);
+      track('monthly_saved', { records: m.recordIds.length });
       setMsg('월간 다이어리를 저장했어요.');
       setErr('');
     } catch (e) {
@@ -408,7 +415,7 @@ export function MonthlyEditor({ month, onBack, onNew }: { month: string; onBack:
           이미지로 저장·공유
         </button>
       </div>
-      {share && <ShareSheet makeImage={makeImage} fileName={`hanjang-${month}.jpg`} onClose={() => setShare(false)} />}
+      {share && <ShareSheet kind="monthly" makeImage={makeImage} fileName={`hanjang-${month}.jpg`} onClose={() => setShare(false)} />}
     </div>
   );
 }
